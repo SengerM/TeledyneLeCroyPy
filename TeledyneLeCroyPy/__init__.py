@@ -2,7 +2,7 @@ import pyvisa
 from time import sleep
 import numpy as np
 
-def _validate_channel_number(ch):
+def _validate_channel_number(channel):
 	CHANNEL_NUMBERS = {1,2,3,4}
 	if channel not in CHANNEL_NUMBERS:
 		raise ValueError(f'<channel> must be in {CHANNEL_NUMBERS}')

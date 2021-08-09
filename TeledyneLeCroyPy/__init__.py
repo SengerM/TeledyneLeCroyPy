@@ -1,4 +1,4 @@
-from time import sleep
+import time
 import numpy as np
 from pyvisa.resources import Resource
 
@@ -60,6 +60,22 @@ class LeCroyWaveRunner:
 		volts[volts>127] -= 255
 		volts = volts/25*vdiv-ofst
 		return {'time': np.array(times), 'volt': np.array(volts)}
+	
+	def wait_for_single_trigger(self,timeout=-1):
+		"""Sets the trigger in 'SINGLE' and blocks the execution of the
+		program until the oscilloscope triggers.
+		- timeout: float, number of seconds to wait until rising a 
+		RuntimeError exception. If timeout=-1 it is infinite."""
+		try:
+			timeout = float(timeout)
+		except:
+			raise TypeError(f'<timeout> must be a float number, received object of type {type(timeout)}.')
+		self.set_trig_mode('SINGLE')
+		start = time.time()
+		while self.query('TRIG_MODE?') != 'STOP':
+			time.sleep(.1)
+			if timeout >= 0 and time.time() - start > timeout:
+				raise RuntimeError(f'Timed out waiting for oscilloscope to trigger after {timeout} seconds.')
 	
 	def set_trig_mode(self, mode: str):
 		"""Sets the trigger mode."""

@@ -62,25 +62,6 @@ class LeCroyWaveRunner:
 			volts.append(sample/25*vdiv - ofst)
 			times.append(tdiv*14/2+idx/sampling_rate)
 		return {'time': np.array(times), 'volt': np.array(volts)}
-
-	def acquire_one_pulse(self):
-		current_trigger = self.trig_mode
-		self.trig_mode = 'AUTO' # Set it to auto so if there is no signal, it records "almost 0" (noise) and not the previous trigger.
-		sleep(0.1) # Wait for the oscilloscope to change the trigger mode.
-		self.trig_mode = 'SINGLE' # We want the 4 channels from a single trigger.
-		# I assume that the triggering is almost instantaneous so I don't have to put a delay here.
-		signals = {}
-		for ch in [1,2,3,4]:
-			signals[f'CH{ch}'] = self.get_wf(CH=ch)
-		self.trig_mod = current_trigger # Set the trigger back to the original configuration.
-		return signals
-	
-	@property
-	def trig_mode(self):
-		return self.query('TRIG_MODE?').replace('\n','')
-	@trig_mode.setter
-	def trig_mode(self, mode: str):
-		self.set_trig_mode(mode)
 	
 	def set_trig_mode(self, mode: str):
 		"""Sets the trigger mode."""

@@ -30,7 +30,10 @@ class LeCroyWaveRunner:
 	
 	def read(self):
 		"""Reads the answer from the instrument."""
-		return self.resource.read()
+		response = self.resource.read()
+		if response[-1] == '\n':
+			response = response[:-1]
+		return response
 	
 	def query(self, msg):
 		"""Sends a command to the instrument and immediately reads the

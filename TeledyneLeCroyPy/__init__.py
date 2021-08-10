@@ -17,6 +17,8 @@ class LeCroyWaveRunner:
 			raise TypeError(f'<instrument> must be an instance of {Resource}, i.e. you have to connect to this instrument using pyvisa and provide me the instrument. For example `instrument = pyvisa.ResourceManager().open_resource("USB0::bla::bla::bla::INSTR")`.')
 		self.resource = instrument
 		self.write('CHDR OFF') # This is to receive only numerical data in the answers and not also the echo of the command and some other stuff. See p. 22 of http://cdn.teledynelecroy.com/files/manuals/tds031000-2000_programming_manual.pdf
+		if 'lecroy' not in self.idn.lower():
+			raise RuntimeError(f'The instrument you provided does not seem to be a LeCroy oscilloscope, its name is {self.idn}. Please check this.')
 	
 	@property
 	def idn(self):
@@ -98,3 +100,9 @@ class LeCroyWaveRunner:
 		float number with the volts/div value."""
 		_validate_channel_number(channel)
 		return float(self.query(f'C{channel}:VDIV?')) # http://cdn.teledynelecroy.com/files/manuals/tds031000-2000_programming_manual.pdf#page=47
+
+class LeCroyWaveRunner640Zi(LeCroyWaveRunner):
+	def __init__(self, instrument):
+		super().__init__(instrument)
+		if 'wr640zi' not in self.idn.lower():
+			raise RuntimeError(f'The instrument you provided does not seem to be a LeCroy WaveRunner 640Zi, its name is {self.idn}. Please check.')

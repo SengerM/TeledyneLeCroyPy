@@ -44,9 +44,9 @@ class LeCroyWaveRunner:
 		return self.read()
 	
 	def get_waveform(self, channel: int):
-		"""Gets the waveform from the specified channel.
+		"""Gets the waveform from the specified channel in SI units.
 		- channel: int, the number of channel.
-		Returns: A dictionary of the form {'time': array, 'volt': array}
+		Returns: A dictionary of the form {'Time (s)': array, 'Amplitude (V)': array}
 		containing the time and voltage values."""
 		# Page 223: http://cdn.teledynelecroy.com/files/manuals/tds031000-2000_programming_manual.pdf
 		# Page 258: http://cdn.teledynelecroy.com/files/manuals/wr2_rcm_revb.pdf
@@ -61,7 +61,7 @@ class LeCroyWaveRunner:
 		volts = np.array(raw_data)
 		volts[volts>127] -= 255
 		volts = volts/25*vdiv-ofst
-		return {'time': np.array(times), 'volt': np.array(volts)}
+		return {'Time (s)': np.array(times), 'Amplitude (V)': np.array(volts)}
 	
 	def wait_for_single_trigger(self,timeout=-1):
 		"""Sets the trigger in 'SINGLE' and blocks the execution of the

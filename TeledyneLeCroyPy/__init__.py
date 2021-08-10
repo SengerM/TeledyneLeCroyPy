@@ -57,7 +57,7 @@ class LeCroyWaveRunner:
 		sampling_rate = float(self.query("VBS? 'return=app.Acquisition.Horizontal.SamplingRate'")) # This line is a combination of http://cdn.teledynelecroy.com/files/manuals/maui-remote-control-and-automation-manual.pdf and p. 1-20 http://cdn.teledynelecroy.com/files/manuals/automation_command_ref_manual_ws.pdf
 		vdiv = self.get_vdiv(channel)
 		ofst = float(self.query('c1:ofst?'))
-		times = np.arange(len(raw_data))
+		times = np.arange(len(raw_data))/sampling_rate + tdiv*14/2
 		volts = np.array(raw_data)
 		volts[volts>127] -= 255
 		volts = volts/25*vdiv-ofst

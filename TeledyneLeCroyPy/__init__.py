@@ -57,9 +57,11 @@ class LeCroyWaveRunner:
 		sampling_rate = float(self.query("VBS? 'return=app.Acquisition.Horizontal.SamplingRate'")) # This line is a combination of http://cdn.teledynelecroy.com/files/manuals/maui-remote-control-and-automation-manual.pdf and p. 1-20 http://cdn.teledynelecroy.com/files/manuals/automation_command_ref_manual_ws.pdf
 		vdiv = self.get_vdiv(channel)
 		ofst = float(self.query('c1:ofst?'))
-		times = np.arange(len(raw_data))/sampling_rate + tdiv*14/2
-		volts = np.array(raw_data)
+		times = np.arange(len(raw_data))/sampling_rate + tdiv*14/2 # See page 223 in http://cdn.teledynelecroy.com/files/manuals/tds031000-2000_programming_manual.pdf
+		volts = np.array(raw_data).astype(float)
 		volts[volts>127] -= 255
+		volts[volts>127-1] = float('NaN') # This means that there was overflow towards positive voltages. I don't want this to pass without notice.
+		volts[volts<128-255+1] = float('NaN') # This means that there was overflow towards negative voltages. I don't want this to pass without notice.
 		volts = volts/25*vdiv-ofst
 		return {'Time (s)': np.array(times), 'Amplitude (V)': np.array(volts)}
 	

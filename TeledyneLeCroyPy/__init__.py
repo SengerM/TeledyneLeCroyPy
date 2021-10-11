@@ -149,6 +149,18 @@ class LeCroyWaveRunner:
 		string += '"' + str(level) + '"'
 		string += "'"
 		self.write(string)
+	
+	def set_trig_slope(self, trig_source: str, trig_slope: str):
+		"""Set the trigger slope (Positive, negative, either)."""
+		# See http://cdn.teledynelecroy.com/files/manuals/automation_command_ref_manual_ws.pdf#page=36
+		_validate_trig_source(trig_source)
+		VALID_TRIG_SLOPES = {'Positive', 'Negative', 'Either'}
+		if not isinstance(trig_slope, str) or trig_slope.lower() not in {tslp.lower() for tslp in VALID_TRIG_SLOPES}:
+			raise ValueError(f'The trigger coupling must be one of {VALID_TRIG_SLOPES}, received {repr(trig_slope)}...')
+		string = f"VBS 'app.Acquisition.Trigger.{trig_source}.Slope = "
+		string += '"' + trig_slope + '"'
+		string += "'"
+		self.write(string)
 
 class LeCroyWaveRunner640Zi(LeCroyWaveRunner):
 	def __init__(self, instrument):
@@ -164,3 +176,4 @@ if __name__ == '__main__':
 	print(osc.idn)
 	osc.set_trig_coupling('ext', 'DC')
 	osc.set_trig_level('ext', -50e-3)
+	osc.set_trig_slope('ext', 'Negative')

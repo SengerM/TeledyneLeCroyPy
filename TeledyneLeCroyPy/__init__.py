@@ -137,7 +137,17 @@ class LeCroyWaveRunner:
 		string = f"VBS 'app.Acquisition.Trigger.{trig_source}.Coupling = "
 		string += '"' + trig_coupling + '"'
 		string += "'"
-		print(string)
+		self.write(string)
+	
+	def set_trig_level(self, trig_source: str, level: float):
+		"""Set the trigger level."""
+		# See http://cdn.teledynelecroy.com/files/manuals/automation_command_ref_manual_ws.pdf#page=36
+		_validate_trig_source(trig_source)
+		if not isinstance(level, (float, int)):
+			raise ValueError(f'The trigger level must be a float number, received object of type {type(level)}.')
+		string = f"VBS 'app.Acquisition.Trigger.{trig_source}.Level = "
+		string += '"' + str(level) + '"'
+		string += "'"
 		self.write(string)
 
 class LeCroyWaveRunner640Zi(LeCroyWaveRunner):
@@ -153,3 +163,4 @@ if __name__ == '__main__':
 	osc = LeCroyWaveRunner(pyvisa.ResourceManager().open_resource('USB0::0x05FF::0x1023::4751N40408::INSTR'))
 	print(osc.idn)
 	osc.set_trig_coupling('ext', 'DC')
+	osc.set_trig_level('ext', -50e-3)

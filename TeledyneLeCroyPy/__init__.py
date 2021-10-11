@@ -102,9 +102,35 @@ class LeCroyWaveRunner:
 		float number with the volts/div value."""
 		_validate_channel_number(channel)
 		return float(self.query(f'C{channel}:VDIV?')) # http://cdn.teledynelecroy.com/files/manuals/tds031000-2000_programming_manual.pdf#page=47
+	
+	def get_trig_source(self):
+		"""Returns the trigger source as a string."""
+		# See http://cdn.teledynelecroy.com/files/manuals/automation_command_ref_manual_ws.pdf#page=34
+		return str(self.query("VBS? 'return=app.Acquisition.Trigger.Source'"))
+	
+	def set_trig_source(self, source: str):
+		"""Sets the trigger source."""
+		# See http://cdn.teledynelecroy.com/files/manuals/automation_command_ref_manual_ws.pdf#page=34
+		if not isinstance(source, str):
+			raise TypeError(f'<source> must be a string, received object of type {type(source)}.')
+		allowed_trigger_sources = {'C1','C2','C3','C4','Ext','Line','FastEdge'}
+		if source.lower() not in {t.lower() for t in allowed_trigger_sources}:
+			raise ValueError(f'<source> must be one of {allowed_trigger_sources}, received {repr(source)}...')
+		string = "VBS 'app.Acquisition.Trigger.Source = "
+		string += '"' + source + '"'
+		string += "'"
+		print(string)
+		self.write(string)
 
 class LeCroyWaveRunner640Zi(LeCroyWaveRunner):
 	def __init__(self, instrument):
 		super().__init__(instrument)
 		if 'wr640zi' not in self.idn.lower():
 			raise RuntimeError(f'The instrument you provided does not seem to be a LeCroy WaveRunner 640Zi, its name is {self.idn}. Please check.')
+
+if __name__ == '__main__':
+	# I am just testing...
+	import pyvisa
+	
+	osc = LeCroyWaveRunner(pyvisa.ResourceManager().open_resource('USB0::0x05FF::0x1023::4751N40408::INSTR'))
+	print(osc.idn)

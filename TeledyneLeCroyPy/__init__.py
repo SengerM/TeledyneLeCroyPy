@@ -132,7 +132,6 @@ class LeCroyWaveRunner:
 		string = "VBS 'app.Acquisition.Trigger.Source = "
 		string += '"' + source + '"'
 		string += "'"
-		print(string)
 		self.write(string)
 	
 	def set_trig_coupling(self, trig_source: str, trig_coupling: str):
@@ -169,6 +168,13 @@ class LeCroyWaveRunner:
 		string += '"' + trig_slope + '"'
 		string += "'"
 		self.write(string)
+	
+	def set_trig_delay(self, trig_delay: float):
+		"""Set the trig delay, i.e. the time interval between the trigger event and the center of the screen."""
+		# See http://cdn.teledynelecroy.com/files/manuals/tds031000-2000_programming_manual.pdf#page=152
+		if not isinstance(trig_delay, (float, int)):
+			raise ValueError(f'The trigger delay must be a number, received object of type {type(trig_delay)}.')
+		self.write(f'TRIG_DELAY {trig_delay}')
 
 class LeCroyWaveRunner640Zi(LeCroyWaveRunner):
 	def __init__(self, instrument):

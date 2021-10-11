@@ -106,6 +106,14 @@ class LeCroyWaveRunner:
 		_validate_channel_number(channel)
 		self.write(f'C{channel}:VDIV {float(vdiv)}') # http://cdn.teledynelecroy.com/files/manuals/tds031000-2000_programming_manual.pdf#page=47
 	
+	def set_tdiv(self, tdiv: str):
+		"""Sets the horizontal scale per division for the main window."""
+		# See http://cdn.teledynelecroy.com/files/manuals/tds031000-2000_programming_manual.pdf#page=151
+		VALID_TDIVs = ['1NS','2NS','5NS','10NS','20NS','50NS','100NS','200NS','500NS','1US','2US','5US','10US','20US','50US','100US','200US','500US','1MS','2MS','5MS','10MS','20MS','50MS','100MS','200MS','500MS','1S','2S','5S','10S','20S','50S','100S']
+		if not isinstance(tdiv, str) or tdiv.lower() not in {t.lower() for t in VALID_TDIVs}:
+			raise ValueError(f'tdiv must be one of {VALID_TDIVs}, received {repr(tdiv)}.')
+		self.write(f'TDIV {tdiv}')
+
 	def get_vdiv(self, channel: int):
 		"""Gets the vertical scale of the specified channel. Returns a 
 		float number with the volts/div value."""
@@ -177,3 +185,4 @@ if __name__ == '__main__':
 	osc.set_trig_coupling('ext', 'DC')
 	osc.set_trig_level('ext', -50e-3)
 	osc.set_trig_slope('ext', 'Negative')
+	osc.set_tdiv('20ns')

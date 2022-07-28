@@ -1,8 +1,6 @@
 import time
 import numpy as np
-from pyvisa.resources import Resource
-
-
+import pyvisa
 
 def _validate_channel_number(channel):
 	CHANNEL_NUMBERS = {1,2,3,4}
@@ -17,14 +15,30 @@ def _validate_trig_source(trig_source):
 		raise ValueError(f'The trigger source must be one of {TRIG_SOURCES_VALID}, received {repr(trig_source)}...')
 
 class LeCroyWaveRunner:
-	def __init__(self, instrument):
+	def __init__(self, resource_name:str):
 		"""This is a wrapper class for a pyvisa Resource object to communicate
 		with a LeCroy oscilloscope.
-		- instrument: A pyvisa Resource object. If for some reason you
-		want to access the Resource object, it is stored in `LeCroyWaveRunner.resource`."""
-		if not isinstance(instrument, Resource):
-			raise TypeError(f'<instrument> must be an instance of {Resource}, i.e. you have to connect to this instrument using pyvisa and provide me the instrument. For example `instrument = pyvisa.ResourceManager().open_resource("USB0::bla::bla::bla::INSTR")`.')
-		self.resource = instrument
+		
+		Parameters
+		----------
+		resource_name: str
+			Whatever you have to provide to `pyvisa` to open the connection
+			with the oscilloscope, see [here](https://pyvisa.readthedocs.io/en/latest/api/resourcemanager.html#pyvisa.highlevel.ResourceManager.open_resource).
+			Example: "USB0::0x05ff::0x1023::4751N40408::INSTR"
+		"""
+		if not isinstance(resource_name, str):
+			raise TypeError(f'<resource_name> must be a string, received object of type {type(resource_name)}')
+		
+		try:
+			oscilloscope = pyvisa.ResourceManager('@ivi').open_resource(resource_name)
+		except pyvisa.errors.VisaIOError:
+			try:
+				pyvisa.ResourceManager('@py').open_resource(resource_name) # This I already know it won't work, but it triggers something that makes the `@ivi` to work.
+			except:
+				pass
+			oscilloscope = pyvisa.ResourceManager('@ivi').open_resource(resource_name) # Now this works. Don't ask me.
+		
+		self.resource = oscilloscope
 		self.write('CHDR OFF') # This is to receive only numerical data in the answers and not also the echo of the command and some other stuff. See p. 22 of http://cdn.teledynelecroy.com/files/manuals/tds031000-2000_programming_manual.pdf
 		if 'lecroy' not in self.idn.lower():
 			raise RuntimeError(f'The instrument you provided does not seem to be a LeCroy oscilloscope, its name is {self.idn}. Please check this.')
@@ -176,19 +190,10 @@ class LeCroyWaveRunner:
 			raise ValueError(f'The trigger delay must be a number, received object of type {type(trig_delay)}.')
 		self.write(f'TRIG_DELAY {trig_delay}')
 
-class LeCroyWaveRunner640Zi(LeCroyWaveRunner):
-	def __init__(self, instrument):
-		super().__init__(instrument)
-		if 'wr640zi' not in self.idn.lower():
-			raise RuntimeError(f'The instrument you provided does not seem to be a LeCroy WaveRunner 640Zi, its name is {self.idn}. Please check.')
-
 if __name__ == '__main__':
-	# I am just testing...
-	import pyvisa
-	
-	osc = LeCroyWaveRunner(pyvisa.ResourceManager().open_resource('USB0::0x05FF::0x1023::4751N40408::INSTR'))
+	osc = LeCroyWaveRunner('USB0::0x05ff::0x1023::4751N40408::INSTR')
 	print(osc.idn)
 	osc.set_trig_coupling('ext', 'DC')
 	osc.set_trig_level('ext', -50e-3)
 	osc.set_trig_slope('ext', 'Negative')
-	osc.set_tdiv('20ns')
+	osc.set_tdiv('2ns')

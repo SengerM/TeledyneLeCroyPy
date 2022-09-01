@@ -40,7 +40,7 @@ class LeCroyWaveRunner:
 		except OSError as e:
 			if 'Could not open VISA library' in str(e):
 				# Let us try with the pyvisa library.
-				pyvisa.ResourceManager('@py').open_resource(resource_name)
+				oscilloscope = pyvisa.ResourceManager('@py').open_resource(resource_name)
 			else:
 				raise e
 		

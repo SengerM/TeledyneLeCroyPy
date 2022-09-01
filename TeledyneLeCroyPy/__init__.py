@@ -37,6 +37,12 @@ class LeCroyWaveRunner:
 			except:
 				pass
 			oscilloscope = pyvisa.ResourceManager('@ivi').open_resource(resource_name) # Now this works. Don't ask me.
+		except OSError as e:
+			if 'Could not open VISA library' in str(e):
+				# Let us try with the pyvisa library.
+				pyvisa.ResourceManager('@py').open_resource(resource_name)
+			else:
+				raise e
 		
 		self.resource = oscilloscope
 		self.write('CHDR OFF') # This is to receive only numerical data in the answers and not also the echo of the command and some other stuff. See p. 22 of http://cdn.teledynelecroy.com/files/manuals/tds031000-2000_programming_manual.pdf

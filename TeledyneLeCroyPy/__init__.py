@@ -227,7 +227,28 @@ class LeCroyWaveRunner:
 		if not isinstance(trig_delay, (float, int)):
 			raise ValueError(f'The trigger delay must be a number, received object of type {type(trig_delay)}.')
 		self.write(f'TRIG_DELAY {trig_delay}')
-
+	
+	def sampling_mode_sequence(self, status:str, number_of_segments:int=None)->None:
+		"""Configure the "sampling mode sequence" in the oscilloscope. See
+		[here](https://cdn.teledynelecroy.com/files/manuals/maui-remote-control-automation_27jul22.pdf#%5B%7B%22num%22%3A1235%2C%22gen%22%3A0%7D%2C%7B%22name%22%3A%22XYZ%22%7D%2C54%2C743.25%2C0%5D).
+		
+		Arguments
+		---------
+		status: str
+			Either 'on' or 'off'.
+		number_of_segments: int
+			Number of segments, i.e. number of "sub triggers" within the
+			sequence mode.
+		"""
+		if not isinstance(status, str) or status.lower() not in {'on','off'}:
+			raise ValueError(f'`status` must be a string, either "on" or "off", received {status} of type {type(status)}.')
+		if number_of_segments is not None and not isinstance(number_of_segments, int):
+			raise TypeError(f'`number_of_segments` must be an integer number.')
+		cmd = f'SEQUENCE {status.upper()}'
+		if number_of_segments is not None:
+			cmd += f',{number_of_segments}'
+		self.write(cmd)
+	
 if __name__ == '__main__':
 	osc = LeCroyWaveRunner('USB0::0x05ff::0x1023::4751N40408::INSTR')
 	print(osc.idn)

@@ -73,26 +73,58 @@ class LeCroyWaveRunner:
 		return self.read()
 	
 	def get_waveform(self, channel: int):
-		"""Gets the waveform from the specified channel in SI units.
-		- channel: int, the number of channel.
-		Returns: A dictionary of the form {'Time (s)': array, 'Amplitude (V)': array}
-		containing the time and voltage values."""
+		"""Gets the waveform from the specified channel.
+		
+		Arguments
+		---------
+		channel: int
+			Number of channel from which to get the waveform data.
+		
+		Returns
+		-------
+		waveform(s): dict or list
+			If the "sampling mode" is not "Sequence", a dictionary of the 
+			form `{'Time (s)': numpy.array, 'Amplitude (V)': numpy.array}`
+			is returned with the waveform.
+			If "sampling mode" "Sequence" is configured in the oscilloscope
+			then a list of dictionaries is returned, each element of the
+			list being each waveform from each sequence.
+		"""
+		_validate_channel_number(channel)
+		
 		# Page 223: http://cdn.teledynelecroy.com/files/manuals/tds031000-2000_programming_manual.pdf
 		# Page 258: http://cdn.teledynelecroy.com/files/manuals/wr2_rcm_revb.pdf
-		_validate_channel_number(channel)
 		self.write(f'C{channel}:WF?')
-		raw_data = list(self.resource.read_raw())[361:-1] # By some unknown reason the first 360 samples are crap, and also the last one.
-		tdiv = float(self.query('TDIV?'))
-		sampling_rate = float(self.query("VBS? 'return=app.Acquisition.Horizontal.SamplingRate'")) # This line is a combination of http://cdn.teledynelecroy.com/files/manuals/maui-remote-control-and-automation-manual.pdf and p. 1-20 http://cdn.teledynelecroy.com/files/manuals/automation_command_ref_manual_ws.pdf
-		vdiv = self.get_vdiv(channel)
-		ofst = float(self.query('c1:ofst?'))
-		times = np.arange(len(raw_data))/sampling_rate + tdiv*14/2 # See page 223 in http://cdn.teledynelecroy.com/files/manuals/tds031000-2000_programming_manual.pdf
+		raw_data = list(self.resource.read_raw())
+		
+		seq = self.query('SEQUENCE?')
+		sequence_status = seq.split(',')[0]
+		n_sequences = int(seq.split(',')[1])
+		
+		
+		raw_data = raw_data[:-1] # For some reason last sample always seems to be some random garbage.
+		if sequence_status == 'OFF':
+			n_sequences = 0
+		raw_data = raw_data[16*(n_sequences)+361:] # # Here I drop the first "n" samples which are garbage, same as the last one. Don't know the reason for this. This linear function of `n_sequences` I found it empirically.
+		
 		volts = np.array(raw_data).astype(float)
 		volts[volts>127] -= 255
-		volts[volts>127-1] = float('NaN') # This means that there was overflow towards positive voltages. I don't want this to pass without notice.
-		volts[volts<128-255+1] = float('NaN') # This means that there was overflow towards negative voltages. I don't want this to pass without notice.
-		volts = volts/25*vdiv-ofst
-		return {'Time (s)': np.array(times), 'Amplitude (V)': np.array(volts)}
+		volts[volts>127-1] = float('NaN') # This means that (very likely) there was overflow towards positive voltages.
+		volts[volts<128-255+1] = float('NaN') # This means that (very likely) there was overflow towards negative voltages.
+		volts = volts/25*self.get_vdiv(channel)-float(self.query(f'C{channel}:ofst?'))
+		
+		n_waveforms = 1 if sequence_status=='OFF' else n_sequences
+		number_of_samples_per_waveform = int(len(volts)/n_waveforms)
+		volts = [volts[n_waveform*number_of_samples_per_waveform:(n_waveform+1)*number_of_samples_per_waveform] for n_waveform in range(n_waveforms)]
+		
+		tdiv = float(self.query('TDIV?'))
+		sampling_rate = float(self.query("VBS? 'return=app.Acquisition.Horizontal.SamplingRate'")) # This line is a combination of http://cdn.teledynelecroy.com/files/manuals/maui-remote-control-and-automation-manual.pdf and p. 1-20 http://cdn.teledynelecroy.com/files/manuals/automation_command_ref_manual_ws.pdf
+		times = np.arange(len(volts[0]))/sampling_rate + tdiv*14/2 # See page 223 in http://cdn.teledynelecroy.com/files/manuals/tds031000-2000_programming_manual.pdf
+		
+		if sequence_status == 'OFF':
+			return {'Time (s)': times, 'Amplitude (V)': volts[0]}
+		else:
+			return [{'Time (s)': times, 'Amplitude (V)': v} for v in volts]
 	
 	def wait_for_single_trigger(self,timeout=-1):
 		"""Sets the trigger in 'SINGLE' and blocks the execution of the

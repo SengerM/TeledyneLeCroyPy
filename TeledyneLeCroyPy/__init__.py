@@ -100,11 +100,10 @@ class LeCroyWaveRunner:
 		seq = self.query('SEQUENCE?')
 		sequence_status = seq.split(',')[0]
 		n_segments_configured = int(seq.split(',')[1])
+		n_segments_acquired = 0 if sequence_status=='OFF' else int(self.query("VBS? 'return=app.Acquisition.Horizontal.AcquiredSegments'")) # See https://cdn.teledynelecroy.com/files/manuals/automation_command_ref_manual_ws.pdf p. 1-20.
 		
 		raw_data = raw_data[:-1] # For some reason last sample always seems to be some random garbage.
-		if sequence_status == 'OFF':
-			n_segments_configured = 0
-		raw_data = raw_data[16*(n_segments_configured)+361:] # Here I drop the first "n" samples which are garbage, same as the last one. Don't know the reason for this. This linear function of `n_sequences` I found it empirically.
+		raw_data = raw_data[16*(n_segments_acquired)+361:] # Here I drop the first "n" samples which are garbage, same as the last one. Don't know the reason for this. This linear function of `n_sequences` I found it empirically.
 		
 		volts = np.array(raw_data).astype(float)
 		volts[volts>127] -= 255
@@ -114,11 +113,10 @@ class LeCroyWaveRunner:
 		
 		number_of_samples_per_waveform = int(self.query("VBS? 'return=app.Acquisition.Horizontal.NumPoints'")) # See https://cdn.teledynelecroy.com/files/manuals/automation_command_ref_manual_ws.pdf p. 1-20.
 		if sequence_status == 'ON':
-			number_of_samples_per_waveform += 2 # Don't ask... So far it is working. I discovered this by try and failure.
-		n_segments_acquired = 1 if sequence_status=='OFF' else int(self.query("VBS? 'return=app.Acquisition.Horizontal.AcquiredSegments'")) # See https://cdn.teledynelecroy.com/files/manuals/automation_command_ref_manual_ws.pdf p. 1-20.
-		if sequence_status == 'ON' and n_segments_acquired != n_segments_configured:
-			raise RuntimeError(f'The number of waveforms does not conincide with the number of segments. This means that your oscilloscope is configured in "TimeBase→Sequence→Number of segments"={n_segments_configured} but it acquired only {n_segments_acquired}. This may happen because you set a "Sequence timeout". I should be able to deal with this, but I found no way to make the oscilloscope tell me the required information. My apologies.')
-		volts = [volts[n_waveform*number_of_samples_per_waveform:(n_waveform+1)*number_of_samples_per_waveform] for n_waveform in range(n_segments_acquired)]
+			number_of_samples_per_waveform += 2 # Don't ask... Without this it fails. I discovered this by try and failure.
+			volts = [volts[n_waveform*number_of_samples_per_waveform:(n_waveform+1)*number_of_samples_per_waveform] for n_waveform in range(n_segments_acquired)]
+		else:
+			volts = [volts]
 		
 		tdiv = float(self.query('TDIV?'))
 		sampling_rate = float(self.query("VBS? 'return=app.Acquisition.Horizontal.SamplingRate'")) # This line is a combination of http://cdn.teledynelecroy.com/files/manuals/maui-remote-control-and-automation-manual.pdf and p. 1-20 http://cdn.teledynelecroy.com/files/manuals/automation_command_ref_manual_ws.pdf

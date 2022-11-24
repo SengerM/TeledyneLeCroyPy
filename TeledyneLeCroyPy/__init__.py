@@ -1,6 +1,7 @@
 import time
 import numpy as np
 import pyvisa
+import datetime
 
 def _validate_channel_number(channel):
 	CHANNEL_NUMBERS = {1,2,3,4}
@@ -126,6 +127,28 @@ class LeCroyWaveRunner:
 			return {'Time (s)': times, 'Amplitude (V)': volts[0]}
 		else:
 			return [{'Time (s)': times, 'Amplitude (V)': v} for v in volts]
+	
+	def get_triggers_times(self, channel: int)->list:
+		"""Gets the trigger times (with respect to the first trigger). What
+		this function returns is the list of numbers you find if you go
+		in the oscilloscope window to "Timebase→Sequence→Show Sequence Trigger Times...→since Segment 1"
+		
+		Arguments
+		---------
+		channel: int
+			Number of channel from which to get the data.
+		
+		Returns
+		-------
+		trigger_times: list
+			A list of trigger times in seconds from the first trigger.
+		"""
+		_validate_channel_number(channel)
+		raw = self.query(f"VBS? 'return=app.Acquisition.Channels(\"C{channel}\").TriggerTimeFromRef'") # To know this command I used the `XStream Browser` app in the oscilloscope's desktop.
+		raw = [int(i) for i in raw.split(',') if i != '']
+		datetimes = [datetime.datetime.fromtimestamp(i/1e10) for i in raw] # Don't know why we have to divide by 1e10, but it works...
+		datetimes = [i-datetimes[0] for i in datetimes]
+		return [i.total_seconds() for i in datetimes]
 	
 	def wait_for_single_trigger(self,timeout=-1):
 		"""Sets the trigger in 'SINGLE' and blocks the execution of the

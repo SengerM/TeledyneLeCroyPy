@@ -273,6 +273,25 @@ class LeCroyWaveRunner:
 			cmd += f',{number_of_segments}'
 		self.write(cmd)
 	
+	def set_sequence_timeout(self, sequence_timeout:float, enable_sequence_timeout:bool=True):
+		"""Configures the "Sequence timeout" in the oscilloscope both value
+		and enable/disable.
+		
+		Arguments
+		---------
+		sequence_timeout: float
+			Timeout value in seconds.
+		enable_sequence_timeout: bool, default `True`
+			Enable or disable the sequence timeout functionality.
+		"""
+		if not isinstance(sequence_timeout, (int,float)):
+			raise TypeError(f'`sequence_timeout` must be a float number, received object of type {type(sequence_timeout)}.')
+		if not enable_sequence_timeout in {True, False}:
+			raise TypeError(f'`enable_sequence_timeout` must be a boolean, received object of type {type(enable_sequence_timeout)}.')
+		enable_sequence_timeout = 'true' if enable_sequence_timeout==True else 'false'
+		self.write(f"VBS 'app.Acquisition.Horizontal.SequenceTimeout = {sequence_timeout}'")
+		self.write(f"VBS 'app.Acquisition.Horizontal.SequenceTimeoutEnable = {enable_sequence_timeout}'")
+	
 if __name__ == '__main__':
 	osc = LeCroyWaveRunner('USB0::0x05ff::0x1023::4751N40408::INSTR')
 	print(osc.idn)

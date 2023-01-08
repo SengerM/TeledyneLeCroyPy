@@ -530,48 +530,77 @@ class LeCroyWaveRunner:
 		self.write(msg)
 		return self.read()
 	
-	def get_waveform(self, channel: int):
-		"""Gets the waveform from the specified channel.
+	def get_waveform(self, n_channel:int)->dict:
+		"""Gets the waveform(s) from the specified channel.
 		
 		Arguments
 		---------
-		channel: int
+		n_channel: int
 			Number of channel from which to get the waveform data.
 		
 		Returns
 		-------
-		waveform(s): dict or list
-			If the "sampling mode" is not "Sequence", a dictionary of the 
-			form `{'Time (s)': numpy.array, 'Amplitude (V)': numpy.array}`
-			is returned with the waveform.
-			If "sampling mode" "Sequence" is configured in the oscilloscope
-			then a list of dictionaries is returned, each element of the
-			list being each waveform from each sequence.
+		data: dict
+			Returns a dictionary of the form
+			```
+			{
+				'waveforms': [{'Time (s)': t, f'Amplitude (V)': s} for t,s in zip(times,samples)],
+				'wavedesc': parsed_wavedesc_block,
+				'trigtime': parsed_trigtime_block,
+			}
+			```
+			
+			The most important field is the `'waveforms'` field, which is
+			a list of dictionaries, each of the form
+			```
+			{
+				'Time (s)': numpy.array,
+				'Amplitude (V)': numpy.array,
+			}
+			```
+			containing each of the waveforms (many waveforms if TimeBase→Sequence
+			is enabled, a single waveform if TimeBase→RealTime is enabled). Note
+			that if multiple waveforms are present in the oscilloscope, they
+			are split internally such that each element of this list is
+			a whole waveform on its own.
+			
+			The fields `'wavedesc'` and `'trigtime'` contain additional
+			information provided by the oscilloscope, for more information
+			on these read the text that the oscilloscope provides by
+			querying `'TMPL?'`.
 		"""
-		_validate_channel_number(channel)
+		_validate_channel_number(n_channel)
 		
 		self.write('CORD HI') # High-Byte first
 		self.write('COMM_FORMAT DEF9,WORD,BIN') # Communication Format: DEF9 (this is the #9 specification; WORD (reads the samples as 2 Byte integer; BIN (reads in Binary)
 		self.write('CHDR OFF') # Command Header OFF (fewer characters to transfer)
-		self.write(f'C{channel}:WF?')
+		self.write(f'C{n_channel}:WF?')
 		time.sleep(.1)
 		raw_bytes = self.resource.read_raw()
 		raw_bytes = raw_bytes[15:] # This I don't understand, the first 15 bytes are some kind of garbage... But this is happening always.
 		
 		parsed_wavedesc_block = parse_wavedesc_block(raw_bytes)
-		
-		for key,item in parsed_wavedesc_block.items():
-			print(key,item)
-		
 		samples = parse_data_array_1_block(raw_bytes, parsed_wavedesc_block)
 		parsed_trigtime_block = parse_trigtime_block(raw_bytes, parsed_wavedesc_block)
 		
 		n_samples_per_trigger = int(len(samples)/parsed_wavedesc_block['SUBARRAY_COUNT'])
-		samples = [samples[i*n_samples_per_trigger:(i+1)*n_samples_per_trigger] for i in range(parsed_wavedesc_block['SUBARRAY_COUNT'])]
+		samples = [np.array(samples[i*n_samples_per_trigger:(i+1)*n_samples_per_trigger]) for i in range(parsed_wavedesc_block['SUBARRAY_COUNT'])]#np.array(samples).reshape((parsed_wavedesc_block['SUBARRAY_COUNT'],n_samples_per_trigger))
 		
-		time_array = [parsed_wavedesc_block['HORIZ_INTERVAL']*i+parsed_wavedesc_block['HORIZ_OFFSET'] for i in range(len(samples[0]))]
+		time_array = np.arange(
+			start = 0,
+			stop = parsed_wavedesc_block['HORIZ_INTERVAL']*(n_samples_per_trigger), 
+			step = parsed_wavedesc_block['HORIZ_INTERVAL'],
+		) + parsed_wavedesc_block['HORIZ_OFFSET']
+		times = [np.copy(time_array) for i in range(parsed_wavedesc_block['SUBARRAY_COUNT'])]
 		
-		return [time_array for s in samples], samples
+		for i,trigtime in enumerate(parsed_trigtime_block):
+			times[i] += trigtime['TRIGGER_OFFSET']
+		
+		return {
+			'wavedesc': parsed_wavedesc_block,
+			'trigtime': parsed_trigtime_block,
+			'waveforms': [{'Time (s)': t, f'Amplitude ({parsed_wavedesc_block["VERTUNIT"]})': s} for t,s in zip(times,samples)],
+		}
 		
 	def get_triggers_times(self, channel: int)->list:
 		"""Gets the trigger times (with respect to the first trigger). What
@@ -736,11 +765,4 @@ class LeCroyWaveRunner:
 		enable_sequence_timeout = 'true' if enable_sequence_timeout==True else 'false'
 		self.write(f"VBS 'app.Acquisition.Horizontal.SequenceTimeout = {sequence_timeout}'")
 		self.write(f"VBS 'app.Acquisition.Horizontal.SequenceTimeoutEnable = {enable_sequence_timeout}'")
-	
-if __name__ == '__main__':
-	osc = LeCroyWaveRunner('USB0::0x05ff::0x1023::4751N40408::INSTR')
-	print(osc.idn)
-	osc.set_trig_coupling('ext', 'DC')
-	osc.set_trig_level('ext', -50e-3)
-	osc.set_trig_slope('ext', 'Negative')
-	osc.set_tdiv('2ns')
+

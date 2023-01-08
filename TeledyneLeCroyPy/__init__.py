@@ -2,6 +2,7 @@ import time
 import numpy as np
 import pyvisa
 import datetime
+import struct
 
 def _validate_channel_number(channel):
 	CHANNEL_NUMBERS = {1,2,3,4}
@@ -14,6 +15,346 @@ def _validate_trig_source(trig_source):
 		raise TypeError(f'The trigger source must be a string, received object of type {type(trig_source)}.')
 	if trig_source.lower() not in {t.lower() for t in TRIG_SOURCES_VALID}:
 		raise ValueError(f'The trigger source must be one of {TRIG_SOURCES_VALID}, received {repr(trig_source)}...')
+
+TYPES_LENGTH_IN_BYTES = {
+	# This is according to what is specified by the `LECROY_2_3:  TEMPLATE`, query the command 'TMPL?' to a LeCroy oscilloscope for more information.
+	'byte': 1,
+	'word': 2,
+	'long': 4,
+	'float': 4,
+	'enum': 2,
+	'string': 16,
+	'double': 8,
+	'unit_definition': 48,
+	'time_stamp': 16,
+}
+
+def parse_bytes(bytes_, type_:str):
+	# Parsed bytes according to the specification in `LECROY_2_3:  TEMPLATE`, query the command 'TMPL?' to a LeCroy oscilloscope for more information.
+	if type_ in {'string','unit_definition'}:
+		return bytes_.decode('ASCII').replace(b'\x00'.decode('ASCII'), '')
+	elif type_ == 'byte':
+		raise NotImplementedError()
+	elif type_ == 'word':
+		return int.from_bytes(bytes_, byteorder='big')
+	elif type_ == 'long':
+		return int.from_bytes(bytes_, byteorder='big')
+	elif type_ == 'float':
+		return struct.unpack('>f', bytes_)[0]
+	elif type_ == 'double':
+		return struct.unpack('>d', bytes_)[0]
+	elif type_ == 'enum':
+		return int.from_bytes(bytes_, byteorder='big')
+	elif type_ == 'time_stamp':
+		seconds = struct.unpack('>d', bytes_[0:TYPES_LENGTH_IN_BYTES['double']])[0]
+		return datetime.datetime(
+			second = int(divmod(seconds,1)[0]),
+			microsecond = int(divmod(seconds,1)[1]),
+			minute = int.from_bytes(bytes_[TYPES_LENGTH_IN_BYTES['double']:TYPES_LENGTH_IN_BYTES['double']+1], byteorder='big'),
+			hour = int.from_bytes(bytes_[TYPES_LENGTH_IN_BYTES['double']+1:TYPES_LENGTH_IN_BYTES['double']+2], byteorder='big'),
+			day = int.from_bytes(bytes_[TYPES_LENGTH_IN_BYTES['double']+2:TYPES_LENGTH_IN_BYTES['double']+3], byteorder='big'),
+			month = int.from_bytes(bytes_[TYPES_LENGTH_IN_BYTES['double']+3:TYPES_LENGTH_IN_BYTES['double']+4], byteorder='big'),
+			year = int.from_bytes(bytes_[TYPES_LENGTH_IN_BYTES['double']+4:TYPES_LENGTH_IN_BYTES['double']+6], byteorder='big'),
+		)
+	else:
+		raise ValueError(f'Dont know how to parse bytes of type {repr(type_)}, supported types are {sorted(set(TYPES_LENGTH_IN_BYTES))}. ')
+
+def parse_wavedesc_block(header_bytes)->dict:
+	# To get documentation about this header, query the command 'TMPL?' to a LeCroy oscilloscope.
+	WAVEDESC_HEADER_STRUCTURE = [
+		{
+			'position': 0,
+			'name': 'DESCRIPTOR_NAME',
+			'type': 'string',
+		},
+		{
+			'position': 16,
+			'name': 'TEMPLATE_NAME',
+			'type': 'string',
+		},
+		{
+			'position': 32,
+			'name': 'COMM_TYPE',
+			'type': 'enum',
+		},
+		{
+			'position': 34,
+			'name': 'COMM_ORDER',
+			'type': 'enum',
+		},
+		{
+			'position': 36,
+			'name': 'WAVE_DESCRIPTOR',
+			'type': 'long',
+		},
+		{
+			'position': 40,
+			'name': 'USER_TEXT',
+			'type': 'long',
+		},
+		{
+			'position': 44,
+			'name': 'RES_DESC1',
+			'type': 'long',
+		},
+		{
+			'position': 48,
+			'name': 'TRIGTIME_ARRAY',
+			'type': 'long',
+		},
+		{
+			'position': 52,
+			'name': 'RIS_TIME_ARRAY',
+			'type': 'long',
+		},
+		{
+			'position': 56,
+			'name': 'RES_ARRAY1',
+			'type': 'long',
+		},
+		{
+			'position': 60,
+			'name': 'WAVE_ARRAY_1',
+			'type': 'long',
+		},
+		{
+			'position': 64,
+			'name': 'WAVE_ARRAY_2',
+			'type': 'long',
+		},
+		{
+			'position': 68,
+			'name': 'RES_ARRAY2',
+			'type': 'long',
+		},
+		{
+			'position': 72,
+			'name': 'RES_ARRAY3',
+			'type': 'long',
+		},
+		{
+			'position': 76,
+			'name': 'INSTRUMENT_NAME',
+			'type': 'string',
+		},
+		{
+			'position': 92,
+			'name': 'INSTRUMENT_NUMBER',
+			'type': 'long',
+		},
+		{
+			'position': 96,
+			'name': 'TRACE_LABEL',
+			'type': 'string',
+		},
+		{
+			'position': 112,
+			'name': 'RESERVED1',
+			'type': 'word',
+		},
+		{
+			'position': 114,
+			'name': 'RESERVED2',
+			'type': 'word',
+		},
+		{
+			'position': 116,
+			'name': 'WAVE_ARRAY_COUNT',
+			'type': 'long',
+		},
+		{
+			'position': 120,
+			'name': 'PNTS_PER_SCREEN',
+			'type': 'long',
+		},
+		{
+			'position': 124,
+			'name': 'FIRST_VALID_PNT',
+			'type': 'long',
+		},
+		{
+			'position': 128,
+			'name': 'LAST_VALID_PNT',
+			'type': 'long',
+		},
+		{
+			'position': 132,
+			'name': 'FIRST_POINT',
+			'type': 'long',
+		},
+		{
+			'position': 136,
+			'name': 'SPARSING_FACTOR',
+			'type': 'long',
+		},
+		{
+			'position': 140,
+			'name': 'SEGMENT_INDEX',
+			'type': 'long',
+		},
+		{
+			'position': 144,
+			'name': 'SUBARRAY_COUNT',
+			'type': 'long',
+		},
+		{
+			'position': 148,
+			'name': 'SWEEPS_PER_ACQ',
+			'type': 'long',
+		},
+		{
+			'position': 152,
+			'name': 'POINTS_PER_PAIR',
+			'type': 'word',
+		},
+		{
+			'position': 154,
+			'name': 'PAIR_OFFSET',
+			'type': 'word',
+		},
+		{
+			'position': 156,
+			'name': 'VERTICAL_GAIN',
+			'type': 'float',
+		},
+		{
+			'position': 160,
+			'name': 'VERTICAL_OFFSET',
+			'type': 'float',
+		},
+		{
+			'position': 164,
+			'name': 'MAX_VALUE',
+			'type': 'float',
+		},
+		{
+			'position': 168,
+			'name': 'MIN_VALUE',
+			'type': 'float',
+		},
+		{
+			'position': 172,
+			'name': 'NOMINAL_BITS',
+			'type': 'word',
+		},
+		{
+			'position': 174,
+			'name': 'NOM_SUBARRAY_COUNT',
+			'type': 'word',
+		},
+		{
+			'position': 176,
+			'name': 'HORIZ_INTERVAL',
+			'type': 'float',
+		},
+		{
+			'position': 180,
+			'name': 'HORIZ_OFFSET',
+			'type': 'double',
+		},
+		{
+			'position': 188,
+			'name': 'PIXEL_OFFSET',
+			'type': 'double',
+		},
+		{
+			'position': 196,
+			'name': 'VERTUNIT',
+			'type': 'unit_definition',
+		},
+		{
+			'position': 292,
+			'name': 'HORIZ_UNCERTAINTY',
+			'type': 'float',
+		},
+		{
+			'position': 296,
+			'name': 'TRIGGER_TIME',
+			'type': 'time_stamp',
+		},
+		{
+			'position': 312,
+			'name': 'ACQ_DURATION',
+			'type': 'float',
+		},
+		{
+			'position': 316,
+			'name': 'RECORD_TYPE',
+			'type': 'enum',
+		},
+		{
+			'position': 318,
+			'name': 'PROCESSING_DONE',
+			'type': 'enum',
+		},
+		{
+			'position': 320,
+			'name': 'RESERVED5',
+			'type': 'word',
+		},
+		{
+			'position': 322,
+			'name': 'RIS_SWEEPS',
+			'type': 'word',
+		},
+		{
+			'position': 324,
+			'name': 'TIMEBASE',
+			'type': 'enum',
+		},
+		{
+			'position': 326,
+			'name': 'VERT_COUPLING',
+			'type': 'enum',
+		},
+		{
+			'position': 328,
+			'name': 'PROBE_ATT',
+			'type': 'float',
+		},
+		{
+			'position': 332,
+			'name': 'FIXED_VERT_GAIN',
+			'type': 'enum',
+		},
+		{
+			'position': 334,
+			'name': 'BANDWIDTH_LIMIT',
+			'type': 'enum',
+		},
+		{
+			'position': 336,
+			'name': 'VERTICAL_VERNIER',
+			'type': 'float',
+		},
+		{
+			'position': 340,
+			'name': 'ACQ_VERT_OFFSET',
+			'type': 'float',
+		},
+		{
+			'position': 344,
+			'name': 'WAVE_SOURCE',
+			'type': 'enum',
+		},
+	]
+	
+	parsed_header = {}
+	for element_structure in WAVEDESC_HEADER_STRUCTURE:
+		element_bytes = header_bytes[element_structure['position']:element_structure['position']+TYPES_LENGTH_IN_BYTES[element_structure['type']]]
+		parsed_header[element_structure['name']] = parse_bytes(element_bytes, element_structure['type'])
+	if parsed_header['DESCRIPTOR_NAME'] != 'WAVEDESC':
+		raise RuntimeError(f'Error parsing WAVEDESC header from raw bytes.')
+	return parsed_header
+
+def parse_data_array_1_block(raw_data, parsed_wavedesc_block:dict)->list:
+	wave_data_start_position = parsed_wavedesc_block['WAVE_DESCRIPTOR'] + parsed_wavedesc_block['USER_TEXT'] + parsed_wavedesc_block['TRIGTIME_ARRAY'] + parsed_wavedesc_block['RIS_TIME_ARRAY']
+	wave_data_stop_position = wave_data_start_position+parsed_wavedesc_block['WAVE_ARRAY_1']
+	wave_raw_data = raw_data[wave_data_start_position:wave_data_stop_position]
+	grouped_raw_data = [[wave_raw_data[j] for j in [2*i,2*i+1]] for i in range(int(len(wave_raw_data)/2))]
+	samples = [int.from_bytes(group_of_raw, byteorder='big', signed=True) for group_of_raw in grouped_raw_data]
+	samples = [s*parsed_wavedesc_block['VERTICAL_GAIN'] - parsed_wavedesc_block['VERTICAL_OFFSET'] for s in samples]
+	return samples
 
 class LeCroyWaveRunner:
 	def __init__(self, resource_name:str):
@@ -30,6 +371,7 @@ class LeCroyWaveRunner:
 		if not isinstance(resource_name, str):
 			raise TypeError(f'<resource_name> must be a string, received object of type {type(resource_name)}')
 		
+		# The following ugly connection method is to avoid issues I found in my system.
 		try:
 			oscilloscope = pyvisa.ResourceManager('@ivi').open_resource(resource_name)
 		except pyvisa.errors.VisaIOError:
@@ -46,9 +388,11 @@ class LeCroyWaveRunner:
 				raise e
 		
 		self.resource = oscilloscope
+		
 		self.write('CHDR OFF') # This is to receive only numerical data in the answers and not also the echo of the command and some other stuff. See p. 22 of http://cdn.teledynelecroy.com/files/manuals/tds031000-2000_programming_manual.pdf
+		
 		if 'lecroy' not in self.idn.lower():
-			raise RuntimeError(f'The instrument you provided does not seem to be a LeCroy oscilloscope, its name is {self.idn}. Please check this.')
+			raise RuntimeError(f'The instrument you provided does not seem to be a LeCroy oscilloscope, its name is {repr(self.idn)}.')
 	
 	@property
 	def idn(self):
@@ -93,31 +437,22 @@ class LeCroyWaveRunner:
 		"""
 		_validate_channel_number(channel)
 		
-		# Page 223: http://cdn.teledynelecroy.com/files/manuals/tds031000-2000_programming_manual.pdf
-		# Page 258: http://cdn.teledynelecroy.com/files/manuals/wr2_rcm_revb.pdf
+		self.write('CORD HI') # High-Byte first
+		self.write('COMM_FORMAT DEF9,WORD,BIN') # Communication Format: DEF9 (this is the #9 specification; WORD (reads the samples as 2 Byte integer; BIN (reads in Binary)
+		self.write('CHDR OFF') # Command Header OFF (fewer characters to transfer)
 		self.write(f'C{channel}:WF?')
-		raw_data = list(self.resource.read_raw())
+		time.sleep(.1)
+		raw_data = self.resource.read_raw()
+		raw_data = raw_data[15:]
 		
-		seq = self.query('SEQUENCE?')
-		sequence_status = seq.split(',')[0]
-		n_segments_configured = int(seq.split(',')[1])
-		n_segments_acquired = 0 if sequence_status=='OFF' else int(self.query("VBS? 'return=app.Acquisition.Horizontal.AcquiredSegments'")) # See https://cdn.teledynelecroy.com/files/manuals/automation_command_ref_manual_ws.pdf p. 1-20.
+		parsed_wavedesc_block = parse_wavedesc_block(raw_data)
+		samples = parse_data_array_1_block(raw_data, parsed_wavedesc_block)
 		
-		raw_data = raw_data[:-1] # For some reason last sample always seems to be some random garbage.
-		raw_data = raw_data[16*(n_segments_acquired)+361:] # Here I drop the first "n" samples which are garbage, same as the last one. Don't know the reason for this. This linear function of `n_sequences` I found it empirically.
+		for key,item in parsed_wavedesc_block.items():
+			print(key,item)
+		return samples
 		
-		volts = np.array(raw_data).astype(float)
-		volts[volts>127] -= 255
-		volts[volts>127-1] = float('NaN') # This means that (very likely) there was overflow towards positive voltages.
-		volts[volts<128-255+1] = float('NaN') # This means that (very likely) there was overflow towards negative voltages.
-		volts = volts/25*self.get_vdiv(channel)-float(self.query(f'C{channel}:ofst?'))
-		
-		number_of_samples_per_waveform = int(self.query("VBS? 'return=app.Acquisition.Horizontal.NumPoints'")) # See https://cdn.teledynelecroy.com/files/manuals/automation_command_ref_manual_ws.pdf p. 1-20.
-		if sequence_status == 'ON':
-			number_of_samples_per_waveform += 2 # Don't ask... Without this it fails. I discovered this by try and failure.
-			volts = [volts[n_waveform*number_of_samples_per_waveform:(n_waveform+1)*number_of_samples_per_waveform] for n_waveform in range(n_segments_acquired)]
-		else:
-			volts = [volts]
+		a
 		
 		tdiv = float(self.query('TDIV?'))
 		sampling_rate = float(self.query("VBS? 'return=app.Acquisition.Horizontal.SamplingRate'")) # This line is a combination of http://cdn.teledynelecroy.com/files/manuals/maui-remote-control-and-automation-manual.pdf and p. 1-20 http://cdn.teledynelecroy.com/files/manuals/automation_command_ref_manual_ws.pdf

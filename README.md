@@ -1,6 +1,8 @@
 # TeledyneLeCroyPy
 
-Easily control a Teledyne LeCroy WaveRunner oscilloscope from Python.
+Easily control a Teledyne-LeCroy oscilloscope from Python. The package
+is designed to be easy to use and user-friendly, returning the data
+types that you want to handle (lists, numpy arrays, etc) instead of bytes.
 
 ![LeCroy WaveRunner oscilloscope](https://marvel-b1-cdn.bc0a.com/f00000000073308/assets.lcry.net/images/oscilloscopes/wr8000-1.png)
 
@@ -12,17 +14,68 @@ pip install git+https://github.com/SengerM/TeledyneLeCroyPy
 
 ## Usage
 
-Example:
+Simple example:
 
 ```Python
 import TeledyneLeCroyPy
 
-osc = TeledyneLeCroyPy.LeCroyWaveRunner('USB0::bla::bla::bla::INSTR')
+o = TeledyneLeCroyPy.LeCroyWaveRunner('TCPIP0::blah.bla.blah.bla::inst0::INSTR')
 
-print(osc.idn) # Prints e.g. LECROY,WR640ZI,LCRY2810N60091,7.7.1
+print(o.idn) # Prings e.g. LECROY,WAVERUNNER9254M,LCRY4751N40408,9.2.0
 
-osc.wait_for_single_trigger() # Blocks until there is a trigger.
-data = osc.get_waveform(channel=2) # Gets the data from channel 2 with the proper scaling to volts.
-print(data['Time (s)'])
-print(data['Amplitude (V)'])
+print('Waiting for trigger...')
+o.wait_for_single_trigger() # Halt the execution until there is a trigger.
+
+data = o.get_waveform(n_channel=n_channel)
+
+print(data['waveforms'])
 ```
+
+More interesting example, acquire data from two channels and plot it:
+
+```Python
+import TeledyneLeCroyPy
+import plotly.express as px
+import pandas
+
+o = TeledyneLeCroyPy.LeCroyWaveRunner('TCPIP0::130.60.165.204::inst0::INSTR')
+
+print(o.idn) # Check the connection.
+
+print('Waiting for trigger...')
+o.wait_for_single_trigger()
+
+data = {}
+for n_channel in [2,3]:
+	data[n_channel] = o.get_waveform(n_channel=n_channel)
+
+wf = []
+for n_channel in data:
+	for i,_ in enumerate(data[n_channel]['waveforms']):
+		df = pandas.DataFrame(_)
+		df['n_segment'] = i
+		df['n_channel'] = n_channel
+		wf.append(df)
+wf = pandas.concat(wf)
+
+fig = px.line(
+	wf,
+	x = 'Time (s)',
+	y = 'Amplitude (V)',
+	color = 'n_segment',
+	facet_col = 'n_channel',
+	markers = True,
+)
+fig.write_html('deleteme.html') # Open this plot to visualize the waveform(s).
+```
+
+The previous example should work either with `TimeBase`→`RealTime` as well
+as with `TimeBase`→`Sequence` with any number of sequences.
+
+# Additional info
+
+The reconstruction of the waveform data is already implemented within this
+package, taking care of the proper time alignment of each sample and the
+correct vertical reconstruction. Here an example:
+
+![](doc/Screenshot from 2023-01-08 18-24-42.png)

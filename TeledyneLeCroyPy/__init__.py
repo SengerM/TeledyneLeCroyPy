@@ -590,7 +590,7 @@ class LeCroyWaveRunner:
 			start = 0,
 			stop = parsed_wavedesc_block['HORIZ_INTERVAL']*(n_samples_per_trigger), 
 			step = parsed_wavedesc_block['HORIZ_INTERVAL'],
-		) + parsed_wavedesc_block['HORIZ_OFFSET']
+		)# + parsed_wavedesc_block['HORIZ_OFFSET']
 		times = [np.copy(time_array) for i in range(parsed_wavedesc_block['SUBARRAY_COUNT'])]
 		
 		for i,trigtime in enumerate(parsed_trigtime_block):

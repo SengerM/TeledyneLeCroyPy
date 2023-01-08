@@ -16,8 +16,8 @@ def _validate_trig_source(trig_source):
 	if trig_source.lower() not in {t.lower() for t in TRIG_SOURCES_VALID}:
 		raise ValueError(f'The trigger source must be one of {TRIG_SOURCES_VALID}, received {repr(trig_source)}...')
 
-TYPES_LENGTH_IN_BYTES = {
-	# This is according to what is specified by the `LECROY_2_3:  TEMPLATE`, query the command 'TMPL?' to a LeCroy oscilloscope for more information.
+TYPES_LENGTH_IN_LECROY_2_3 = {
+	# This is in accordance with the specification in `LECROY_2_3:  TEMPLATE`, query the command `'TMPL?'` to a LeCroy oscilloscope for more information.
 	'byte': 1,
 	'word': 2,
 	'long': 4,
@@ -29,39 +29,78 @@ TYPES_LENGTH_IN_BYTES = {
 	'time_stamp': 16,
 }
 
-def parse_bytes(bytes_, type_:str):
-	# Parsed bytes according to the specification in `LECROY_2_3:  TEMPLATE`, query the command 'TMPL?' to a LeCroy oscilloscope for more information.
-	if type_ in {'string','unit_definition'}:
-		return bytes_.decode('ASCII').replace(b'\x00'.decode('ASCII'), '')
-	elif type_ == 'byte':
-		raise NotImplementedError()
-	elif type_ == 'word':
-		return int.from_bytes(bytes_, byteorder='big')
-	elif type_ == 'long':
-		return int.from_bytes(bytes_, byteorder='big')
-	elif type_ == 'float':
-		return struct.unpack('>f', bytes_)[0]
-	elif type_ == 'double':
-		return struct.unpack('>d', bytes_)[0]
-	elif type_ == 'enum':
-		return int.from_bytes(bytes_, byteorder='big')
-	elif type_ == 'time_stamp':
-		seconds = struct.unpack('>d', bytes_[0:TYPES_LENGTH_IN_BYTES['double']])[0]
+def parse_bytes_LECROY_2_3(raw_bytes:bytes, interpret_as:str):
+	"""Parses an array of bytes according to the specification in the so
+	called `LECROY_2_3 template`. 
+	
+	Arguments
+	---------
+	raw_bytes: array of bytes
+		An array of bytes, hopefully created by a LeCroy oscilloscope.
+	interpret_as: str
+		How to interpret the bytes. Possible options are 'byte', 'word',
+		'long', 'float', 'enum', 'string', 'double', 'unit_definition', 
+		and 'time_stamp'.
+	
+	Returns
+	-------
+	parsed_bytes: variable type
+		Returns the information extracted from the bytes in the appropriate
+		Python type.
+	"""
+	# If you don't know what the `LECROY_2_3 template` is just query your oscilloscope the command `'TMPL?'` and it will answer a long text with all the information to understand this function.
+	if len(raw_bytes) != TYPES_LENGTH_IN_LECROY_2_3[interpret_as]:
+		raise ValueError(f'I was requested to interpret an array of bytes of length {len(raw_bytes)} as a {repr(interpret_as)}, but according to the specification in the `LECROY_2_3 template` a {repr(interpret_as)} requires exactly {TYPES_LENGTH_IN_LECROY_2_3[interpret_as]} bytes. ')
+	if not isinstance(raw_bytes, bytes):
+		raise TypeError(f'`raw_bytes` must be an instance of {repr(bytes)}, received an object of type {type(raw_bytes)}. ')
+	
+	if interpret_as in {'string','unit_definition'}:
+		return raw_bytes.decode('ASCII').replace(b'\x00'.decode('ASCII'), '')
+	elif interpret_as == 'byte':
+		return int.from_bytes(raw_bytes, byteorder='big', signed=True)
+	elif interpret_as == 'word':
+		return int.from_bytes(raw_bytes, byteorder='big', signed=True)
+	elif interpret_as == 'long':
+		return int.from_bytes(raw_bytes, byteorder='big', signed=True)
+	elif interpret_as == 'float':
+		return struct.unpack('>f', raw_bytes)[0]
+	elif interpret_as == 'double':
+		return struct.unpack('>d', raw_bytes)[0]
+	elif interpret_as == 'enum':
+		return int.from_bytes(raw_bytes, byteorder='big', signed=False)
+	elif interpret_as == 'time_stamp':
+		seconds = struct.unpack('>d', raw_bytes[0:TYPES_LENGTH_IN_LECROY_2_3['double']])[0]
 		return datetime.datetime(
 			second = int(divmod(seconds,1)[0]),
 			microsecond = int(divmod(seconds,1)[1]),
-			minute = int.from_bytes(bytes_[TYPES_LENGTH_IN_BYTES['double']:TYPES_LENGTH_IN_BYTES['double']+1], byteorder='big'),
-			hour = int.from_bytes(bytes_[TYPES_LENGTH_IN_BYTES['double']+1:TYPES_LENGTH_IN_BYTES['double']+2], byteorder='big'),
-			day = int.from_bytes(bytes_[TYPES_LENGTH_IN_BYTES['double']+2:TYPES_LENGTH_IN_BYTES['double']+3], byteorder='big'),
-			month = int.from_bytes(bytes_[TYPES_LENGTH_IN_BYTES['double']+3:TYPES_LENGTH_IN_BYTES['double']+4], byteorder='big'),
-			year = int.from_bytes(bytes_[TYPES_LENGTH_IN_BYTES['double']+4:TYPES_LENGTH_IN_BYTES['double']+6], byteorder='big'),
+			minute = int.from_bytes(raw_bytes[TYPES_LENGTH_IN_LECROY_2_3['double']:TYPES_LENGTH_IN_LECROY_2_3['double']+1], byteorder='big'),
+			hour = int.from_bytes(raw_bytes[TYPES_LENGTH_IN_LECROY_2_3['double']+1:TYPES_LENGTH_IN_LECROY_2_3['double']+2], byteorder='big'),
+			day = int.from_bytes(raw_bytes[TYPES_LENGTH_IN_LECROY_2_3['double']+2:TYPES_LENGTH_IN_LECROY_2_3['double']+3], byteorder='big'),
+			month = int.from_bytes(raw_bytes[TYPES_LENGTH_IN_LECROY_2_3['double']+3:TYPES_LENGTH_IN_LECROY_2_3['double']+4], byteorder='big'),
+			year = int.from_bytes(raw_bytes[TYPES_LENGTH_IN_LECROY_2_3['double']+4:TYPES_LENGTH_IN_LECROY_2_3['double']+6], byteorder='big'),
 		)
 	else:
-		raise ValueError(f'Dont know how to parse bytes of type {repr(type_)}, supported types are {sorted(set(TYPES_LENGTH_IN_BYTES))}. ')
+		raise ValueError(f'Dont know how to parse bytes of type {repr(interpret_as)}, supported types are {sorted(set(TYPES_LENGTH_IN_LECROY_2_3))}. ')
 
-def parse_wavedesc_block(header_bytes)->dict:
-	# To get documentation about this header, query the command 'TMPL?' to a LeCroy oscilloscope.
+def parse_wavedesc_block(raw_bytes:bytes)->dict:
+	"""Given an array of bytes, hopefully produced by a LeCroy oscilloscope,
+	it parses the WAVEDESC block header. If you don't know what this header
+	is, query `'TMPL?'` to a LeCroy oscilloscope and it will answer with
+	a long text documenting this.
+	
+	Arguments
+	---------
+	raw_bytes: bytes
+		The array of bytes produced by the LeCroy oscilloscope from which
+		to parse the WAVEDESC block out.
+	
+	Returns
+	-------
+	parsed_header: dict
+		A dictionary with the parsed data.
+	"""
 	WAVEDESC_HEADER_STRUCTURE = [
+		# To get documentation about this header, query the command 'TMPL?' to a LeCroy oscilloscope.
 		{
 			'position': 0,
 			'name': 'DESCRIPTOR_NAME',
@@ -341,18 +380,36 @@ def parse_wavedesc_block(header_bytes)->dict:
 	
 	parsed_header = {}
 	for element_structure in WAVEDESC_HEADER_STRUCTURE:
-		element_bytes = header_bytes[element_structure['position']:element_structure['position']+TYPES_LENGTH_IN_BYTES[element_structure['type']]]
-		parsed_header[element_structure['name']] = parse_bytes(element_bytes, element_structure['type'])
+		element_bytes = raw_bytes[element_structure['position']:element_structure['position']+TYPES_LENGTH_IN_LECROY_2_3[element_structure['type']]]
+		parsed_header[element_structure['name']] = parse_bytes_LECROY_2_3(element_bytes, element_structure['type'])
 	if parsed_header['DESCRIPTOR_NAME'] != 'WAVEDESC':
 		raise RuntimeError(f'Error parsing WAVEDESC header from raw bytes.')
 	return parsed_header
 
-def parse_data_array_1_block(raw_data, parsed_wavedesc_block:dict)->list:
+def parse_data_array_1_block(raw_bytes:bytes, parsed_wavedesc_block:dict)->list:
+	"""Given an array of bytes, hopefully produced by a LeCroy oscilloscope,
+	it parses the DATA_ARRAY_1 block. If you don't know what this 
+	is, query `'TMPL?'` to a LeCroy oscilloscope and it will answer with
+	a long text documenting this.
+	
+	Arguments
+	---------
+	raw_bytes: bytes
+		The array of bytes produced by the LeCroy oscilloscope from which
+		to parse the WAVEDESC block out.
+	parsed_wavedesc_block: dict
+		The dictionary produced by the `parsed_wavedesc_block` function.
+	
+	Returns
+	-------
+	samples: list of float
+		A list with the samples in the oscilloscope.
+	"""
 	wave_data_start_position = parsed_wavedesc_block['WAVE_DESCRIPTOR'] + parsed_wavedesc_block['USER_TEXT'] + parsed_wavedesc_block['TRIGTIME_ARRAY'] + parsed_wavedesc_block['RIS_TIME_ARRAY']
 	wave_data_stop_position = wave_data_start_position+parsed_wavedesc_block['WAVE_ARRAY_1']
-	wave_raw_data = raw_data[wave_data_start_position:wave_data_stop_position]
-	grouped_raw_data = [[wave_raw_data[j] for j in [2*i,2*i+1]] for i in range(int(len(wave_raw_data)/2))]
-	samples = [int.from_bytes(group_of_raw, byteorder='big', signed=True) for group_of_raw in grouped_raw_data]
+	wave_raw_data = raw_bytes[wave_data_start_position:wave_data_stop_position]
+	grouped_raw_data = [wave_raw_data[2*i:2*i+2] for i in range(int(len(wave_raw_data)/2))]
+	samples = [parse_bytes_LECROY_2_3(group_of_raw, 'word') for group_of_raw in grouped_raw_data]
 	samples = [s*parsed_wavedesc_block['VERTICAL_GAIN'] - parsed_wavedesc_block['VERTICAL_OFFSET'] for s in samples]
 	return samples
 
@@ -442,11 +499,11 @@ class LeCroyWaveRunner:
 		self.write('CHDR OFF') # Command Header OFF (fewer characters to transfer)
 		self.write(f'C{channel}:WF?')
 		time.sleep(.1)
-		raw_data = self.resource.read_raw()
-		raw_data = raw_data[15:]
+		raw_bytes = self.resource.read_raw()
+		raw_bytes = raw_bytes[15:] # This I don't understand, the first 15 bytes are some kind of garbage... But this is happening always.
 		
-		parsed_wavedesc_block = parse_wavedesc_block(raw_data)
-		samples = parse_data_array_1_block(raw_data, parsed_wavedesc_block)
+		parsed_wavedesc_block = parse_wavedesc_block(raw_bytes)
+		samples = parse_data_array_1_block(raw_bytes, parsed_wavedesc_block)
 		
 		time_array = [parsed_wavedesc_block['HORIZ_INTERVAL']*i+parsed_wavedesc_block['HORIZ_OFFSET'] for i in range(len(samples))]
 		

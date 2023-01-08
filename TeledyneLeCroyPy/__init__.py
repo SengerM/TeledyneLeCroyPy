@@ -415,6 +415,60 @@ def parse_data_array_1_block(raw_bytes:bytes, parsed_wavedesc_block:dict)->list:
 	warnings.warn('FALTA CHECKEAR EL OVERFLOW!!')
 	return samples
 
+def parse_trigtime_block(raw_bytes:bytes, parsed_wavedesc_block:dict)->list:
+	"""Given an array of bytes, hopefully produced by a LeCroy oscilloscope,
+	it parses the TRIGTIME block. If you don't know what this means just
+	query `'TMPL?'` to a LeCroy oscilloscope and it will answer with
+	a long text documenting this.
+	
+	Arguments
+	---------
+	raw_bytes: bytes
+		The array of bytes produced by the LeCroy oscilloscope from which
+		to parse the WAVEDESC block out.
+	parsed_wavedesc_block: dict
+		The dictionary produced by the `parsed_wavedesc_block` function.
+	
+	Returns
+	-------
+	parsed_trigtime_block: list of dict
+		A list with the parsed trigtime for each of the acquired sequences.
+		Each element of the list corresponds to each of the sequences
+		acquired by the oscilloscope.
+		If the TRIGTIME block is non existent (e.g. the oscilloscope was
+		in RealTime instead of Sequence timebase, an empty list is returned.
+	"""
+	TRIGTIME_BLOCK_STRUCTURE = [
+		# To get documentation about this header, query the command 'TMPL?' to a LeCroy oscilloscope.
+		{
+			'position': 0,
+			'name': 'TRIGGER_TIME',
+			'type': 'double',
+		},
+		{
+			'position': 8,
+			'name': 'TRIGGER_OFFSET',
+			'type': 'double',
+		},
+	]
+	TRIGTIME_BLOCK_LENGTH_SINGLE_SUBARRAY = sum([TYPES_LENGTH_IN_LECROY_2_3[element['type']] for element in TRIGTIME_BLOCK_STRUCTURE])
+	
+	if parsed_wavedesc_block['TRIGTIME_ARRAY'] == 0: # This means that there is no TRIGTIME bock to parse, probably because the oscilloscope was not configured in SEQUENCE mode.
+		return []
+	
+	trigtime_block_start_position = parsed_wavedesc_block['WAVE_DESCRIPTOR'] + parsed_wavedesc_block['USER_TEXT']
+	trigtime_block_stop_position = parsed_wavedesc_block['WAVE_DESCRIPTOR'] + parsed_wavedesc_block['USER_TEXT'] + parsed_wavedesc_block['TRIGTIME_ARRAY']
+	trigtime_block_bytes = raw_bytes[trigtime_block_start_position:trigtime_block_stop_position]
+	
+	parsed_trigtime_block = []
+	for i in range(parsed_wavedesc_block['SUBARRAY_COUNT']):
+		parsed_header = {}
+		for element_structure in TRIGTIME_BLOCK_STRUCTURE:
+			element_bytes = trigtime_block_bytes[i*TRIGTIME_BLOCK_LENGTH_SINGLE_SUBARRAY+element_structure['position']:i*TRIGTIME_BLOCK_LENGTH_SINGLE_SUBARRAY+element_structure['position']+TYPES_LENGTH_IN_LECROY_2_3[element_structure['type']]]
+			parsed_header[element_structure['name']] = parse_bytes_LECROY_2_3(element_bytes, element_structure['type'])
+		parsed_trigtime_block.append(parsed_header)
+	return parsed_trigtime_block
+
 class LeCroyWaveRunner:
 	def __init__(self, resource_name:str):
 		"""This is a wrapper class for a pyvisa Resource object to communicate
@@ -505,14 +559,17 @@ class LeCroyWaveRunner:
 		raw_bytes = raw_bytes[15:] # This I don't understand, the first 15 bytes are some kind of garbage... But this is happening always.
 		
 		parsed_wavedesc_block = parse_wavedesc_block(raw_bytes)
+		
+		for key,item in parsed_wavedesc_block.items():
+			print(key,item)
+		
 		samples = parse_data_array_1_block(raw_bytes, parsed_wavedesc_block)
+		parsed_trigtime_block = parse_trigtime_block(raw_bytes, parsed_wavedesc_block)
+		
 		n_samples_per_trigger = int(len(samples)/parsed_wavedesc_block['SUBARRAY_COUNT'])
 		samples = [samples[i*n_samples_per_trigger:(i+1)*n_samples_per_trigger] for i in range(parsed_wavedesc_block['SUBARRAY_COUNT'])]
 		
 		time_array = [parsed_wavedesc_block['HORIZ_INTERVAL']*i+parsed_wavedesc_block['HORIZ_OFFSET'] for i in range(len(samples[0]))]
-		
-		for key,item in parsed_wavedesc_block.items():
-			print(key,item)
 		
 		return [time_array for s in samples], samples
 		

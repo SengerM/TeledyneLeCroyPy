@@ -3,6 +3,7 @@ import numpy as np
 import pyvisa
 import datetime
 import struct
+import warnings
 
 def _validate_channel_number(channel):
 	CHANNEL_NUMBERS = {1,2,3,4}
@@ -411,6 +412,7 @@ def parse_data_array_1_block(raw_bytes:bytes, parsed_wavedesc_block:dict)->list:
 	grouped_raw_data = [wave_raw_data[2*i:2*i+2] for i in range(int(len(wave_raw_data)/2))]
 	samples = [parse_bytes_LECROY_2_3(group_of_raw, 'word') for group_of_raw in grouped_raw_data]
 	samples = [s*parsed_wavedesc_block['VERTICAL_GAIN'] - parsed_wavedesc_block['VERTICAL_OFFSET'] for s in samples]
+	warnings.warn('FALTA CHECKEAR EL OVERFLOW!!')
 	return samples
 
 class LeCroyWaveRunner:

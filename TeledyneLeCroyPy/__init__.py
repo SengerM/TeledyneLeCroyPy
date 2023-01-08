@@ -448,9 +448,12 @@ class LeCroyWaveRunner:
 		parsed_wavedesc_block = parse_wavedesc_block(raw_data)
 		samples = parse_data_array_1_block(raw_data, parsed_wavedesc_block)
 		
+		time_array = [parsed_wavedesc_block['HORIZ_INTERVAL']*i+parsed_wavedesc_block['HORIZ_OFFSET'] for i in range(len(samples))]
+		
 		for key,item in parsed_wavedesc_block.items():
 			print(key,item)
-		return samples
+		
+		return {'Time (s)': time_array, 'Amplitude (V)': samples}
 		
 		a
 		

@@ -506,25 +506,16 @@ class LeCroyWaveRunner:
 		
 		parsed_wavedesc_block = parse_wavedesc_block(raw_bytes)
 		samples = parse_data_array_1_block(raw_bytes, parsed_wavedesc_block)
+		n_samples_per_trigger = int(len(samples)/parsed_wavedesc_block['SUBARRAY_COUNT'])
+		samples = [samples[i*n_samples_per_trigger:(i+1)*n_samples_per_trigger] for i in range(parsed_wavedesc_block['SUBARRAY_COUNT'])]
 		
-		time_array = [parsed_wavedesc_block['HORIZ_INTERVAL']*i+parsed_wavedesc_block['HORIZ_OFFSET'] for i in range(len(samples))]
+		time_array = [parsed_wavedesc_block['HORIZ_INTERVAL']*i+parsed_wavedesc_block['HORIZ_OFFSET'] for i in range(len(samples[0]))]
 		
 		for key,item in parsed_wavedesc_block.items():
 			print(key,item)
 		
-		return {'Time (s)': time_array, 'Amplitude (V)': samples}
+		return [time_array for s in samples], samples
 		
-		a
-		
-		tdiv = float(self.query('TDIV?'))
-		sampling_rate = float(self.query("VBS? 'return=app.Acquisition.Horizontal.SamplingRate'")) # This line is a combination of http://cdn.teledynelecroy.com/files/manuals/maui-remote-control-and-automation-manual.pdf and p. 1-20 http://cdn.teledynelecroy.com/files/manuals/automation_command_ref_manual_ws.pdf
-		times = np.arange(len(volts[0]))/sampling_rate + tdiv*14/2 # See page 223 in http://cdn.teledynelecroy.com/files/manuals/tds031000-2000_programming_manual.pdf
-		
-		if sequence_status == 'OFF':
-			return {'Time (s)': times, 'Amplitude (V)': volts[0]}
-		else:
-			return [{'Time (s)': times, 'Amplitude (V)': v} for v in volts]
-	
 	def get_triggers_times(self, channel: int)->list:
 		"""Gets the trigger times (with respect to the first trigger). What
 		this function returns is the list of numbers you find if you go

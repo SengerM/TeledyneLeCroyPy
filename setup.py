@@ -2,10 +2,10 @@ import setuptools
 
 setuptools.setup(
 	name = "TeledyneLeCroyPy",
-	version = "0.0.0",
+	version = "0.1",
 	author = "Matias H. Senger",
 	author_email = "m.senger@hotmail.com",
-	description = "Control of the Teledyne LeCroy oscilloscopes with pure Python",
+	description = "Control Teledyne LeCroy oscilloscopes easily from Python",
 	url = "https://github.com/SengerM/TeledyneLeCroyPy",
 	packages = setuptools.find_packages(),
 	classifiers = [

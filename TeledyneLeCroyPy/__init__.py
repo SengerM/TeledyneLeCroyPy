@@ -404,15 +404,17 @@ def parse_data_array_1_block(raw_bytes:bytes, parsed_wavedesc_block:dict)->list:
 	Returns
 	-------
 	samples: list of float
-		A list with the samples in the oscilloscope.
+		A list with the samples in the oscilloscope in units of volt (or
+		whatever unit they have), and with `float('NaN')` values in those
+		samples where there was overflow.
 	"""
 	wave_data_start_position = parsed_wavedesc_block['WAVE_DESCRIPTOR'] + parsed_wavedesc_block['USER_TEXT'] + parsed_wavedesc_block['TRIGTIME_ARRAY'] + parsed_wavedesc_block['RIS_TIME_ARRAY']
 	wave_data_stop_position = wave_data_start_position+parsed_wavedesc_block['WAVE_ARRAY_1']
 	wave_raw_data = raw_bytes[wave_data_start_position:wave_data_stop_position]
 	grouped_raw_data = [wave_raw_data[2*i:2*i+2] for i in range(int(len(wave_raw_data)/2))]
-	samples = [parse_bytes_LECROY_2_3(group_of_raw, 'word') for group_of_raw in grouped_raw_data]
-	samples = [s*parsed_wavedesc_block['VERTICAL_GAIN'] - parsed_wavedesc_block['VERTICAL_OFFSET'] for s in samples]
-	warnings.warn('FALTA CHECKEAR EL OVERFLOW!!')
+	samples = [parse_bytes_LECROY_2_3(group_of_raw, 'word') for group_of_raw in grouped_raw_data] # Bytes to integers.
+	samples = [s if parsed_wavedesc_block['MIN_VALUE']<=s<=parsed_wavedesc_block['MAX_VALUE'] else float('NaN') for s in samples] # Overflow check.
+	samples = [s*parsed_wavedesc_block['VERTICAL_GAIN'] - parsed_wavedesc_block['VERTICAL_OFFSET'] for s in samples] # ADC to Volts conversion.
 	return samples
 
 def parse_trigtime_block(raw_bytes:bytes, parsed_wavedesc_block:dict)->list:

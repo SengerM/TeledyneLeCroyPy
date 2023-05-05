@@ -8,9 +8,13 @@ types that you want to handle (lists, numpy arrays, etc) instead of bytes.
 
 ## Installation
 
+To install this package:
+
 ```
 pip install git+https://github.com/SengerM/TeledyneLeCroyPy
 ```
+
+This package requires [pyvisa](https://pyvisa.readthedocs.io/en/latest/).
 
 ## Usage
 

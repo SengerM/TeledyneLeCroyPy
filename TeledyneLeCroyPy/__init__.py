@@ -655,6 +655,15 @@ class LeCroyWaveRunner:
 			raise TypeError(f'<vdiv> must be a float number, received object of type {type(vdiv)}.')
 		_validate_channel_number(channel)
 		self.write(f'C{channel}:VDIV {float(vdiv)}') # http://cdn.teledynelecroy.com/files/manuals/tds031000-2000_programming_manual.pdf#page=47
+
+	def set_voffset(self, channel: int, voffset: float):
+		"""Sets the vertical offset for the specified channel."""
+		try:
+			voffset = float(voffset)
+		except:
+			raise TypeError(f'<voffset> must be a float number, received object of type {type(voffset)}.')
+		_validate_channel_number(channel)
+		self.write(f'C{channel}:OFST {float(voffset)}') # http://cdn.teledynelecroy.com/files/manuals/tds031000-2000_programming_manual.pdf#page=43
 	
 	def set_tdiv(self, tdiv: str):
 		"""Sets the horizontal scale per division for the main window."""

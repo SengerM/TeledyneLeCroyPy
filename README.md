@@ -82,4 +82,4 @@ The reconstruction of the waveform data is already implemented within this
 package, taking care of the proper time alignment of each sample and the
 correct vertical reconstruction. Here an example:
 
-![](doc/Screenshot from 2023-01-08 18-24-42.png)
+![](doc/waveforms.png)
